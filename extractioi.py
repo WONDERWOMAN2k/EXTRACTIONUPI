@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pdfplumber
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
 
 # Streamlit Title
 st.title("UPI Transaction Extraction and Analysis")
@@ -19,14 +20,12 @@ if uploaded_file is not None:
         # Extract text from the first page (you can modify this to extract more pages or tables)
         page = pdf.pages[0]
         text = page.extract_text()
-        st.write("Extracted Text from PDF:")
-        st.write(text)
+        if not text.strip():
+            st.warning("No text found in the PDF.")
+        else:
+            st.write("Extracted Text from PDF:")
+            st.write(text)
 
-        # If you want to extract data from tables, you can also use this method
-        # for table extraction:
-        # tables = page.extract_tables()
-        # st.write(tables)
-        
     # Example: Assuming you have extracted some data (mock example)
     # Example DataFrame for displaying UPI transactions
     data = {
@@ -70,3 +69,7 @@ if uploaded_file is not None:
     
     # Display the classification report
     st.write(f"Predictions: {predictions}")
+    
+    # Display model evaluation metrics
+    report = classification_report(y_test, predictions)
+    st.text(report)
