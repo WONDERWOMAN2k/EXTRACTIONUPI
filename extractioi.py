@@ -1,100 +1,72 @@
-# app.py
-
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import streamlit as st
-from sklearn.model_selection import train_test_split
+import seaborn as sns
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import pdfplumber
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
 
-st.title("📊 Transaction Categorization Dashboard")
+# Streamlit Title
+st.title("UPI Transaction Extraction and Analysis")
 
-# Sample DataFrame (replace this with actual extracted transaction data)
-data = {
-    'Description': ['Swiggy order', 'Amazon purchase', 'Uber ride', 'Bigbasket groceries', 'Recharge prepaid', 'Received salary'],
-    'Amount': [150, 200, 300, 100, 50, 500]
-}
+# File Uploader
+uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
 
-# Create the DataFrame
-df = pd.DataFrame(data)
-df.columns = df.columns.str.strip()
+if uploaded_file is not None:
+    # Process the uploaded file
+    with pdfplumber.open(uploaded_file) as pdf:
+        # Extract text from the first page (you can modify this to extract more pages or tables)
+        page = pdf.pages[0]
+        text = page.extract_text()
+        st.write("Extracted Text from PDF:")
+        st.write(text)
 
-# 🔍 Categorization function
-def categorize_transaction(description):
-    description = description.lower()
-    if "swiggy" in description or "zomato" in description:
-        return "Food"
-    elif "amazon" in description or "flipkart" in description:
-        return "Shopping"
-    elif "uber" in description or "ola" in description:
-        return "Transport"
-    elif "bigbasket" in description:
-        return "Groceries"
-    elif "recharge" in description:
-        return "Utilities"
-    elif "cashback" in description:
-        return "Rewards"
-    elif "received" in description:
-        return "Income"
-    else:
-        return "Others"
+        # If you want to extract data from tables, you can also use this method
+        # for table extraction:
+        # tables = page.extract_tables()
+        # st.write(tables)
+        
+    # Example: Assuming you have extracted some data (mock example)
+    # Example DataFrame for displaying UPI transactions
+    data = {
+        'Transaction ID': ['TX123', 'TX124', 'TX125', 'TX126'],
+        'Description': ['Payment to ABC', 'Payment to XYZ', 'Refund from ABC', 'Payment to PQR'],
+        'Amount': [500, 200, -150, 300],
+        'Date': ['2025-05-10', '2025-05-09', '2025-05-08', '2025-05-07'],
+    }
 
-# Apply categorization
-df['Category'] = df['Description'].apply(categorize_transaction)
+    df = pd.DataFrame(data)
+    
+    # Display the DataFrame
+    st.write("Transaction Data:")
+    st.dataframe(df)
 
-# --- Data Quality Check ---
-st.subheader("🧼 Data Quality Check")
-st.write("Missing values:")
-st.write(df.isnull().sum())
+    # Display a bar chart of transaction amounts
+    st.subheader("Transaction Amounts")
+    st.bar_chart(df['Amount'])
 
-df = df.drop_duplicates()
+    # Visualizing data using Seaborn
+    st.subheader("Seaborn Visualization (Amount Distribution)")
+    sns.histplot(df['Amount'], kde=True)
+    st.pyplot()
 
-# --- Data Preview ---
-st.subheader("📋 Sample Transactions")
-st.dataframe(df.head())
-
-# --- Pie Chart: Category Distribution ---
-st.subheader("📊 Transaction Category Distribution")
-category_counts = df['Category'].value_counts()
-
-fig1, ax1 = plt.subplots()
-category_counts.plot(kind='pie', autopct='%1.1f%%', startangle=90, ax=ax1)
-ax1.set_ylabel('')
-ax1.set_title("Category Distribution")
-st.pyplot(fig1)
-
-# --- Histogram: Amount ---
-st.subheader("💰 Transaction Amount Distribution")
-fig2, ax2 = plt.subplots()
-sns.histplot(df['Amount'], kde=True, ax=ax2)
-ax2.set_title("Amount Distribution")
-st.pyplot(fig2)
-
-# --- Correlation Heatmap ---
-st.subheader("🔗 Correlation Heatmap")
-le = LabelEncoder()
-df['Category_encoded'] = le.fit_transform(df['Category'])
-
-fig3, ax3 = plt.subplots()
-sns.heatmap(df[['Amount', 'Category_encoded']].corr(), annot=True, cmap='coolwarm', ax=ax3)
-st.pyplot(fig3)
-
-# --- Model Building ---
-st.subheader("🤖 Category Prediction Model (Random Forest)")
-
-X = df[['Amount']]
-y = df['Category']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
-y_pred = model.predict(X_test)
-
-# Evaluation
-st.write("### Classification Report")
-st.code(classification_report(y_test, y_pred))
-
-st.write("### Confusion Matrix")
-st.write(confusion_matrix(y_test, y_pred))
+    # Machine Learning Example (Random Forest for Classification)
+    st.subheader("Random Forest Example for Transaction Classification")
+    
+    # Convert 'Amount' to a categorical variable (positive -> 1, negative -> 0)
+    df['Label'] = df['Amount'].apply(lambda x: 1 if x > 0 else 0)
+    
+    X = df[['Amount']]  # Features
+    y = df['Label']  # Target
+    
+    # Train a Random Forest model
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
+    
+    # Make predictions
+    predictions = model.predict(X_test)
+    
+    # Display the classification report
+    st.write(f"Predictions: {predictions}")
