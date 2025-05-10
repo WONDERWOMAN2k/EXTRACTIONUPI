@@ -1,1 +1,3 @@
 # EXTRACTIONUPI
+
+This project is a Streamlit-based application that extracts transaction data from UPI or bank PDF statements and automatically categorizes each transaction (like Food, Shopping, Transport, etc.) using keyword detection. It provides useful visualizations such as pie charts and histograms to help users understand their spending patterns. The dashboard is interactive, easy to use, and also includes a machine learning model (Random Forest) to predict transaction categories. This tool can help with personal finance tracking, budget planning, and automating expense analysis. Just upload your PDF, and get insights instantly in a user-friendly interface. It's ideal for anyone who wants to manage finances smarter using data and ML.
