@@ -1,4 +1,4 @@
-pdfplumber
-pandas
-openai
 streamlit
+pandas
+pdfplumber
+openai
