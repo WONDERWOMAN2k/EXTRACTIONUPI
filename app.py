@@ -5,6 +5,9 @@ import pandas as pd
 import re
 import openai
 import streamlit as st
+import os
+
+os.environ["STREAMLIT_HOME"] = "/tmp/.streamlit"
 
 # Set your OpenAI API key here
 openai.api_key = "YOUR_OPENAI_API_KEY"
