@@ -1,75 +1,89 @@
-import streamlit as st
-import seaborn as sns
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+# app.py
+
 import pdfplumber
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
+import pandas as pd
+import re
+import openai
+import streamlit as st
 
-# Streamlit Title
-st.title("UPI Transaction Extraction and Analysis")
+# Set your OpenAI API key here
+openai.api_key = "YOUR_OPENAI_API_KEY"
 
-# File Uploader
-uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
+# Extract text from PDF
+def extract_text_from_pdf(file):
+    with pdfplumber.open(file) as pdf:
+        text = ''
+        for page in pdf.pages:
+            text += page.extract_text() + '\n'
+    return text
 
-if uploaded_file is not None:
-    # Process the uploaded file
-    with pdfplumber.open(uploaded_file) as pdf:
-        # Extract text from the first page (you can modify this to extract more pages or tables)
-        page = pdf.pages[0]
-        text = page.extract_text()
-        if not text.strip():
-            st.warning("No text found in the PDF.")
-        else:
-            st.write("Extracted Text from PDF:")
-            st.write(text)
+# Parse the UPI transactions from the extracted text
+def parse_transactions(text):
+    pattern = r'(\d{2}/\d{2}/\d{4}) (Paid to|Received from) (.+?) INR([\d,]+\.\d{2})'
+    matches = re.findall(pattern, text)
+    data = []
+    for date, txn_type, party, amount in matches:
+        data.append({
+            "Date": pd.to_datetime(date, dayfirst=True),
+            "Transaction Type": txn_type,
+            "Party": party,
+            "Amount (INR)": float(amount.replace(',', ''))
+        })
+    return pd.DataFrame(data)
 
-    # Example: Assuming you have extracted some data (mock example)
-    # Example DataFrame for displaying UPI transactions
-    data = {
-        'Transaction ID': ['TX123', 'TX124', 'TX125', 'TX126'],
-        'Description': ['Payment to ABC', 'Payment to XYZ', 'Refund from ABC', 'Payment to PQR'],
-        'Amount': [500, 200, -150, 300],
-        'Date': ['2025-05-10', '2025-05-09', '2025-05-08', '2025-05-07'],
+# Analyze and summarize the data
+def generate_summary(df):
+    total_spent = df[df["Transaction Type"] == "Paid to"]["Amount (INR)"].sum()
+    total_received = df[df["Transaction Type"] == "Received from"]["Amount (INR)"].sum()
+    top_expenses = df[df["Transaction Type"] == "Paid to"].groupby("Party")["Amount (INR)"].sum().sort_values(ascending=False).head(3)
+    return {
+        "Total Spent": total_spent,
+        "Total Received": total_received,
+        "Top Expenses": top_expenses.to_dict()
     }
 
-    df = pd.DataFrame(data)
+# Get recommendations using OpenAI
+def get_recommendations(summary):
+    prompt = f"""
+    Here is my UPI transaction summary:
+    Total Spent: ₹{summary['Total Spent']}
+    Total Received: ₹{summary['Total Received']}
+    Top Expenses: {summary['Top Expenses']}
     
-    # Display the DataFrame
-    st.write("Transaction Data:")
-    st.dataframe(df)
+    Based on this, please give me personalized financial advice, tips to save money, and monthly budgeting suggestions.
+    """
 
-    # Display a bar chart of transaction amounts
-    st.subheader("Transaction Amounts")
-    st.bar_chart(df['Amount'])
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response['choices'][0]['message']['content']
 
-    # Visualizing data using Seaborn
-    st.subheader("Seaborn Visualization (Amount Distribution)")
-    sns.histplot(df['Amount'], kde=True)
-    st.pyplot()
+# Streamlit UI
+st.title("💳 Personal UPI Usage & Financial Analyzer")
 
-    # Machine Learning Example (Random Forest for Classification)
-    st.subheader("Random Forest Example for Transaction Classification")
-    
-    # Convert 'Amount' to a categorical variable (positive -> 1, negative -> 0)
-    df['Label'] = df['Amount'].apply(lambda x: 1 if x > 0 else 0)
-    
-    X = df[['Amount']]  # Features
-    y = df['Label']  # Target
-    
-    # Train a Random Forest model
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-    model = RandomForestClassifier()
-    model.fit(X_train, y_train)
-    
-    # Make predictions
-    predictions = model.predict(X_test)
-    
-    # Display the classification report
-    st.write(f"Predictions: {predictions}")
-    
-    # Display model evaluation metrics
-    report = classification_report(y_test, predictions)
-    st.text(report)
+uploaded_file = st.file_uploader("📤 Upload your UPI PDF Statement", type="pdf")
+
+if uploaded_file:
+    with st.spinner("🔍 Extracting and analyzing your data..."):
+        text = extract_text_from_pdf(uploaded_file)
+        df = parse_transactions(text)
+        if df.empty:
+            st.warning("No transactions found in this PDF format.")
+        else:
+            st.success("✅ Transactions parsed successfully!")
+            st.subheader("📊 Transaction Table")
+            st.dataframe(df)
+
+            summary = generate_summary(df)
+            st.subheader("📌 Financial Summary")
+            st.write(f"**Total Spent:** ₹{summary['Total Spent']}")
+            st.write(f"**Total Received:** ₹{summary['Total Received']}")
+            st.write("**Top 3 Expense Categories:**")
+            for party, amt in summary['Top Expenses'].items():
+                st.write(f"- {party}: ₹{amt}")
+
+            if st.button("🧠 Get Financial Advice"):
+                advice = get_recommendations(summary)
+                st.subheader("💡 Personalized Advice")
+                st.write(advice)
